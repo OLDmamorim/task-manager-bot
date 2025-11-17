@@ -37,6 +37,6 @@
 
 ## Erro NameError
 
-- [ ] NameError: name 'is_overdue' is not defined
-- [ ] Reorganizar ordem das funções em utils.py
+- [x] NameError: name 'is_overdue' is not defined
+- [x] Reorganizar ordem das funções em utils.py (is_overdue antes de get_status_emoji)
 - [ ] Testar novamente

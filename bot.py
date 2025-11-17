@@ -1,5 +1,5 @@
 """
-Task Manager Bot - Bot de Gestão de Tarefas
+Task Manager Bot - Bot de Gestão de Tarefas (Versão Simplificada)
 """
 import os
 import logging
@@ -16,14 +16,10 @@ from telegram.ext import (
     filters,
 )
 
-from database import get_db, init_db, register_user, add_default_categories
+from database import init_db, register_user, add_default_categories
 from tasks import (
     create_task, get_user_tasks, get_task_by_id, complete_task,
-    delete_task, update_task, get_user_categories, get_stats
-)
-from utils import (
-    format_date_pt, get_priority_emoji, get_status_emoji,
-    generate_google_calendar_link, is_overdue, get_relative_date_text
+    delete_task, get_stats
 )
 from calendar_utils import get_month_calendar, handle_calendar_callback
 
@@ -37,6 +33,46 @@ logger = logging.getLogger(__name__)
 # Carregar variáveis de ambiente
 load_dotenv()
 TOKEN = os.getenv('BOT_TOKEN')
+
+
+# ==================== FUNÇÕES AUXILIARES ====================
+
+def get_priority_emoji(priority):
+    """Obter emoji para prioridade"""
+    emojis = {'Alta': '🔴', 'Média': '🟡', 'Baixa': '🟢'}
+    return emojis.get(priority, '⚪')
+
+
+def format_task_text(task):
+    """Formatar texto de uma tarefa"""
+    priority = get_priority_emoji(task['priority'])
+    title = task['title']
+    
+    text = f"{priority} **{title}**\n"
+    
+    if task['due_date']:
+        try:
+            date_obj = datetime.strptime(task['due_date'], '%Y-%m-%d')
+            today = datetime.now().date()
+            task_date = date_obj.date()
+            
+            if task_date == today:
+                date_text = "Hoje"
+            elif task_date == today + timedelta(days=1):
+                date_text = "Amanhã"
+            elif task_date < today:
+                days = (today - task_date).days
+                date_text = f"Há {days} dia(s)"
+            else:
+                days = (task_date - today).days
+                date_text = f"Em {days} dia(s)"
+            
+            text += f"   📅 {date_text}\n"
+        except:
+            pass
+    
+    text += f"   ID: `{task['id']}`\n"
+    return text
 
 
 # ==================== COMANDOS BÁSICOS ====================
@@ -54,9 +90,11 @@ Bem-vindo ao **Task Manager Bot**!
 
 📋 **Comandos principais:**
 /nova_tarefa - Criar tarefa
-/tarefas_ativas - Ver tarefas pendentes com checkboxes
+/tarefas_ativas - Ver tarefas com checkboxes
 /tarefas - Ver todas as tarefas
 /hoje - Tarefas de hoje
+/concluir - Marcar como concluída
+/apagar_tarefa - Apagar tarefa
 /stats - Estatísticas
 
 Digite /help para ver todos os comandos!
@@ -92,6 +130,7 @@ async def nova_tarefa_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Comando /nova_tarefa"""
     context.user_data['creating_task'] = True
     context.user_data['task_data'] = {}
+    context.user_data['user_id'] = update.effective_user.id
     
     text = "📝 **Criar Nova Tarefa**\n\nEnvie o **título** da tarefa:"
     await update.message.reply_text(text, parse_mode='Markdown')
@@ -111,16 +150,7 @@ async def tarefas_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = "📋 **Tarefas Pendentes:**\n\n"
     
     for task in tasks:
-        status = get_status_emoji(task)
-        priority = get_priority_emoji(task['priority'])
-        
-        text += f"{status} {priority} **{task['title']}**\n"
-        
-        if task['due_date']:
-            relative = get_relative_date_text(task['due_date'])
-            text += f"   📅 {relative}\n"
-        
-        text += f"   ID: `{task['id']}`\n\n"
+        text += format_task_text(task) + "\n"
     
     await update.message.reply_text(text, parse_mode='Markdown')
 
@@ -136,17 +166,11 @@ async def tarefas_ativas_command(update: Update, context: ContextTypes.DEFAULT_T
     
     keyboard = []
     
-    for task in tasks[:15]:  # Limitar a 15 tarefas
+    for task in tasks[:15]:
         priority = get_priority_emoji(task['priority'])
-        title = task['title'][:40]  # Limitar título
+        title = task['title'][:40]
         
-        # Adicionar info de data se existir
-        date_info = ""
-        if task['due_date']:
-            relative = get_relative_date_text(task['due_date'])
-            date_info = f" - {relative}"
-        
-        button_text = f"☐ {priority} {title}{date_info}"
+        button_text = f"☐ {priority} {title}"
         keyboard.append([InlineKeyboardButton(
             button_text,
             callback_data=f"check_{task['id']}"
@@ -167,7 +191,16 @@ async def hoje_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tasks = get_user_tasks(user_id, completed=False)
     
     today = datetime.now().date()
-    today_tasks = [t for t in tasks if t['due_date'] and datetime.strptime(t['due_date'], '%Y-%m-%d').date() == today]
+    today_tasks = []
+    
+    for task in tasks:
+        if task['due_date']:
+            try:
+                task_date = datetime.strptime(task['due_date'], '%Y-%m-%d').date()
+                if task_date == today:
+                    today_tasks.append(task)
+            except:
+                pass
     
     if not today_tasks:
         await update.message.reply_text("📅 Não tens tarefas para hoje!")
@@ -176,9 +209,7 @@ async def hoje_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = "📅 **Tarefas de Hoje:**\n\n"
     
     for task in today_tasks:
-        priority = get_priority_emoji(task['priority'])
-        text += f"{priority} **{task['title']}**\n"
-        text += f"   ID: `{task['id']}`\n\n"
+        text += format_task_text(task) + "\n"
     
     await update.message.reply_text(text, parse_mode='Markdown')
 
@@ -266,27 +297,16 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler para callbacks dos botões"""
     query = update.callback_query
-    
-    if not query:
-        logger.error("Callback query is None")
-        return
-    
     await query.answer()
     
     data = query.data
-    user_id = query.from_user.id if query.from_user else None
-    
-    if not user_id:
-        logger.error("User ID is None in callback")
-        await query.edit_message_text("❌ Erro: Não foi possível identificar o utilizador.")
-        return
     
     # Cancelar
     if data == "cancel":
         await query.edit_message_text("❌ Operação cancelada.")
         return
     
-    # Checkbox - Marcar como concluída (de /tarefas_ativas)
+    # Checkbox - Marcar como concluída
     if data.startswith("check_"):
         task_id = int(data.replace("check_", ""))
         task = get_task_by_id(task_id)
@@ -299,7 +319,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
     
-    # Concluir tarefa (de /concluir)
+    # Concluir tarefa
     if data.startswith("complete_"):
         task_id = int(data.replace("complete_", ""))
         task = get_task_by_id(task_id)
@@ -337,7 +357,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['cal_month'] = now.month
         
         await query.edit_message_text(
-            f"✅ Prioridade: **{priority}**\n\n📅 **Escolhe a data de vencimento:**",
+            f"✅ Prioridade: **{priority}**\n\n📅 **Escolhe a data:**",
             reply_markup=calendar,
             parse_mode='Markdown'
         )
@@ -357,11 +377,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         elif action == "ignore":
-            # Ignorar cliques em botões não interativos
             return
         
         elif action in ["prev", "next"]:
-            # Navegar para mês anterior/próximo
             calendar = get_month_calendar(year, month)
             context.user_data['cal_year'] = year
             context.user_data['cal_month'] = month
@@ -370,11 +388,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         elif action == "select":
-            # Data selecionada
+            # Data selecionada - criar tarefa
             context.user_data['task_data']['due_date'] = date
             
-            # Criar tarefa
             task_data = context.user_data['task_data']
+            user_id = context.user_data.get('user_id')
+            
             task_id = create_task(
                 user_id=user_id,
                 title=task_data['title'],
@@ -382,53 +401,23 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 due_date=task_data['due_date']
             )
             
-            # Perguntar sobre Google Calendar
-            keyboard = [
-                [InlineKeyboardButton("✅ Sim", callback_data="gcal_yes")],
-                [InlineKeyboardButton("❌ Não", callback_data="gcal_no")],
-            ]
+            date_formatted = datetime.strptime(date, '%Y-%m-%d').strftime('%d/%m/%Y')
             
             await query.edit_message_text(
                 f"✅ **Tarefa criada!**\n\n"
                 f"📋 {task_data['title']}\n"
                 f"⚡ Prioridade: {task_data['priority']}\n"
-                f"📅 Data: {format_date_pt(task_data['due_date'])}\n"
-                f"ID: `{task_id}`\n\n"
-                f"📆 **Adicionar ao Google Calendar?**",
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                f"📅 Data: {date_formatted}\n"
+                f"ID: `{task_id}`",
                 parse_mode='Markdown'
             )
-        return
-    
-    # Google Calendar
-    if data.startswith("gcal_"):
-        response = data.replace("gcal_", "")
-        
-        if response == "yes":
-            # Gerar link Google Calendar
-            task_data = context.user_data.get('task_data', {})
             
-            if task_data.get('due_date'):
-                link = generate_google_calendar_link(
-                    title=task_data['title'],
-                    description='',
-                    start_date=task_data['due_date'],
-                    start_time='09:00',  # Hora padrão
-                    duration_minutes=60
-                )
-                
-                text = f"📆 **Adicionar ao Google Calendar**\n\n[Clique aqui para adicionar]({link})"
-                await query.edit_message_text(text, parse_mode='Markdown')
-            else:
-                await query.edit_message_text("❌ Tarefa sem data definida!")
-        else:
-            await query.edit_message_text("✅ Tarefa criada com sucesso!")
-        
-        # Limpar context
-        context.user_data.pop('creating_task', None)
-        context.user_data.pop('task_data', None)
-        context.user_data.pop('cal_year', None)
-        context.user_data.pop('cal_month', None)
+            # Limpar context
+            context.user_data.pop('creating_task', None)
+            context.user_data.pop('task_data', None)
+            context.user_data.pop('cal_year', None)
+            context.user_data.pop('cal_month', None)
+            context.user_data.pop('user_id', None)
         return
 
 
