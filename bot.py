@@ -51,7 +51,7 @@ def format_task_text(task):
     text = f"{priority} <b>{title}</b>\n"
     
     # Categoria
-    if task.get('category'):
+    if task['category'] and task['category'] != '':
         text += f"   🏷️ {task['category']}\n"
     
     # Data
