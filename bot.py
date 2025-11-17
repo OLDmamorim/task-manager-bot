@@ -43,6 +43,33 @@ def get_priority_emoji(priority):
     return emojis.get(priority, '⚪')
 
 
+def generate_google_calendar_link(title, date, category=None):
+    """Gerar link para adicionar evento ao Google Calendar"""
+    from urllib.parse import quote
+    
+    # Formato: YYYYMMDD
+    date_formatted = date.replace('-', '')
+    
+    # Título do evento
+    event_title = quote(title)
+    
+    # Descrição (incluir categoria se existir)
+    description = ""
+    if category:
+        description = quote(f"Categoria: {category}")
+    
+    # URL do Google Calendar
+    # Formato: https://calendar.google.com/calendar/render?action=TEMPLATE&text=TITLE&dates=START/END&details=DESCRIPTION
+    url = f"https://calendar.google.com/calendar/render?action=TEMPLATE"
+    url += f"&text={event_title}"
+    url += f"&dates={date_formatted}/{date_formatted}"
+    
+    if description:
+        url += f"&details={description}"
+    
+    return url
+
+
 def format_task_text(task):
     """Formatar texto de uma tarefa"""
     priority = get_priority_emoji(task['priority'])
@@ -468,7 +495,23 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if category:
             text += f"🏷️ Categoria: {category_name}"
         
-        await query.edit_message_text(text, parse_mode='HTML')
+        # Adicionar botão de Google Calendar se houver data
+        keyboard = None
+        if task_data.get('due_date'):
+            gcal_link = generate_google_calendar_link(
+                title=task_data['title'],
+                date=task_data['due_date'],
+                category=category
+            )
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("📅 Adicionar ao Google Calendar", url=gcal_link)
+            ]])
+        
+        await query.edit_message_text(
+            text,
+            reply_markup=keyboard,
+            parse_mode='HTML'
+        )
         
         # Limpar context
         context.user_data.pop('creating_task', None)
