@@ -30,6 +30,13 @@
 
 ## Erro is_overdue
 
-- [ ] AttributeError: 'dict' object has no attribute 'date'
-- [ ] Corrigir função is_overdue() em utils.py
+- [x] AttributeError: 'dict' object has no attribute 'date'
+- [x] Corrigir função get_status_emoji() em utils.py
 - [ ] Testar comandos /tarefas, /hoje, /tarefas_ativas
+
+
+## Erro NameError
+
+- [ ] NameError: name 'is_overdue' is not defined
+- [ ] Reorganizar ordem das funções em utils.py
+- [ ] Testar novamente

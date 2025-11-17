@@ -36,6 +36,23 @@ def get_priority_emoji(priority):
     return emojis.get(priority, '⚪')
 
 
+def is_overdue(due_date, due_time=None):
+    """Verificar se tarefa está atrasada"""
+    if not due_date:
+        return False
+    
+    try:
+        if due_time:
+            task_datetime = datetime.strptime(f"{due_date} {due_time}", '%Y-%m-%d %H:%M')
+        else:
+            task_datetime = datetime.strptime(due_date, '%Y-%m-%d')
+            task_datetime = task_datetime.replace(hour=23, minute=59)
+        
+        return datetime.now() > task_datetime
+    except:
+        return False
+
+
 def get_status_emoji(task):
     """Obter emoji para status da tarefa"""
     if isinstance(task, dict):
@@ -54,6 +71,30 @@ def get_status_emoji(task):
             'Atrasada': '⚠️'
         }
         return emojis.get(task, '❓')
+
+
+def get_relative_date_text(date_str):
+    """Obter texto relativo para data (Hoje, Amanhã, etc.)"""
+    if not date_str:
+        return ""
+    
+    try:
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        today = datetime.now().date()
+        tomorrow = today + timedelta(days=1)
+        
+        if date_obj == today:
+            return "Hoje"
+        elif date_obj == tomorrow:
+            return "Amanhã"
+        elif date_obj < today:
+            days_ago = (today - date_obj).days
+            return f"Há {days_ago} dia{'s' if days_ago > 1 else ''}"
+        else:
+            days_left = (date_obj - today).days
+            return f"Em {days_left} dia{'s' if days_left > 1 else ''}"
+    except:
+        return ""
 
 
 def generate_google_calendar_link(title, description, start_date, start_time, duration_minutes):
@@ -91,44 +132,3 @@ def generate_google_calendar_link(title, description, start_date, start_time, du
     query = "&".join([f"{k}={quote(str(v))}" for k, v in params.items()])
     
     return f"{base_url}?{query}"
-
-
-def is_overdue(due_date, due_time=None):
-    """Verificar se tarefa está atrasada"""
-    if not due_date:
-        return False
-    
-    try:
-        if due_time:
-            task_datetime = datetime.strptime(f"{due_date} {due_time}", '%Y-%m-%d %H:%M')
-        else:
-            task_datetime = datetime.strptime(due_date, '%Y-%m-%d')
-            task_datetime = task_datetime.replace(hour=23, minute=59)
-        
-        return datetime.now() > task_datetime
-    except:
-        return False
-
-
-def get_relative_date_text(date_str):
-    """Obter texto relativo para data (Hoje, Amanhã, etc.)"""
-    if not date_str:
-        return ""
-    
-    try:
-        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
-        today = datetime.now().date()
-        tomorrow = today + timedelta(days=1)
-        
-        if date_obj == today:
-            return "Hoje"
-        elif date_obj == tomorrow:
-            return "Amanhã"
-        elif date_obj < today:
-            days_ago = (today - date_obj).days
-            return f"Há {days_ago} dia{'s' if days_ago > 1 else ''}"
-        else:
-            days_left = (date_obj - today).days
-            return f"Em {days_left} dia{'s' if days_left > 1 else ''}"
-    except:
-        return ""
