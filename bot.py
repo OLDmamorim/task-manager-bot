@@ -15,7 +15,6 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
-from telegram_bot_calendar import DetailedTelegramCalendar, LSTEP
 
 from database import get_db, init_db, register_user, add_default_categories
 from tasks import (
@@ -26,6 +25,7 @@ from utils import (
     format_date_pt, get_priority_emoji, get_status_emoji,
     generate_google_calendar_link, is_overdue, get_relative_date_text
 )
+from calendar_utils import get_month_calendar, handle_calendar_callback
 
 # Configurar logging
 logging.basicConfig(
@@ -319,8 +319,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         priority = data.replace("priority_", "")
         context.user_data['task_data']['priority'] = priority
         
-        # Mostrar calendário para escolher data
-        calendar, step = DetailedTelegramCalendar(locale='pt').build()
+        # Mostrar calendário
+        now = datetime.now()
+        calendar = get_month_calendar(now.year, now.month)
+        context.user_data['cal_year'] = now.year
+        context.user_data['cal_month'] = now.month
+        
         await query.edit_message_text(
             f"✅ Prioridade: **{priority}**\n\n📅 **Escolhe a data de vencimento:**",
             reply_markup=calendar,
@@ -328,19 +332,35 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
-    # Calendário - navegação
-    if data.startswith("cbcal_"):
-        result, key, step = DetailedTelegramCalendar(locale='pt').process(data)
+    # Calendário
+    if data.startswith("cal_"):
+        current_year = context.user_data.get('cal_year')
+        current_month = context.user_data.get('cal_month')
         
-        if not result and key:
-            await query.edit_message_text(
-                f"📅 **Escolhe a data:**",
-                reply_markup=key,
-                parse_mode='Markdown'
-            )
-        elif result:
+        action, year, month, date = handle_calendar_callback(data, current_year, current_month)
+        
+        if action == "cancel":
+            await query.edit_message_text("❌ Operação cancelada.")
+            context.user_data.pop('creating_task', None)
+            context.user_data.pop('task_data', None)
+            return
+        
+        elif action == "ignore":
+            # Ignorar cliques em botões não interativos
+            return
+        
+        elif action in ["prev", "next"]:
+            # Navegar para mês anterior/próximo
+            calendar = get_month_calendar(year, month)
+            context.user_data['cal_year'] = year
+            context.user_data['cal_month'] = month
+            
+            await query.edit_message_reply_markup(reply_markup=calendar)
+            return
+        
+        elif action == "select":
             # Data selecionada
-            context.user_data['task_data']['due_date'] = result.strftime('%Y-%m-%d')
+            context.user_data['task_data']['due_date'] = date
             
             # Criar tarefa
             task_data = context.user_data['task_data']
@@ -396,6 +416,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Limpar context
         context.user_data.pop('creating_task', None)
         context.user_data.pop('task_data', None)
+        context.user_data.pop('cal_year', None)
+        context.user_data.pop('cal_month', None)
         return
 
 

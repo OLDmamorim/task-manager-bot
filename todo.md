@@ -8,5 +8,14 @@
 - [x] Criar novo comando /tarefas_ativas
 - [x] Adicionar checkboxes interativos para marcar tarefas como concluídas
 - [ ] Testar funcionalidades localmente
-- [ ] Commit e push para GitHub
+- [x] Commit e push para GitHub
 - [ ] Verificar deploy no Railway
+
+
+## Problema Reportado
+
+- [ ] Apenas /stats funciona, outros comandos não respondem
+- [x] Verificar logs do Railway
+- [x] Identificar erro com python-telegram-bot-calendar (ModuleNotFoundError)
+- [ ] Corrigir erro
+- [ ] Testar todos os comandos
