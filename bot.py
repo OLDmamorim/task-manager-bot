@@ -14,7 +14,6 @@ from telegram.ext import (
     MessageHandler,
     ContextTypes,
     filters,
-    JobQueue,
 )
 
 from database import get_db, init_db, register_user, add_default_categories
