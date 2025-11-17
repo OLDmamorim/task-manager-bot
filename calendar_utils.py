@@ -64,8 +64,11 @@ def get_month_calendar(year, month):
             week.append(InlineKeyboardButton(" ", callback_data="cal_ignore"))
         keyboard.append(week)
     
-    # Botão cancelar
-    keyboard.append([InlineKeyboardButton("❌ Cancelar", callback_data="cal_cancel")])
+    # Botões de ação
+    keyboard.append([
+        InlineKeyboardButton("📭 SEM DATA", callback_data="cal_nodate"),
+        InlineKeyboardButton("❌ Cancelar", callback_data="cal_cancel")
+    ])
     
     return InlineKeyboardMarkup(keyboard)
 
@@ -83,6 +86,9 @@ def handle_calendar_callback(callback_data, current_year=None, current_month=Non
     
     if callback_data == "cal_cancel":
         return ("cancel", None, None, None)
+    
+    if callback_data == "cal_nodate":
+        return ("nodate", None, None, None)
     
     parts = callback_data.split("_")
     

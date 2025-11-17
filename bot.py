@@ -50,6 +50,11 @@ def format_task_text(task):
     
     text = f"{priority} <b>{title}</b>\n"
     
+    # Categoria
+    if task.get('category'):
+        text += f"   🏷️ {task['category']}\n"
+    
+    # Data
     if task['due_date']:
         try:
             date_obj = datetime.strptime(task['due_date'], '%Y-%m-%d')
@@ -363,6 +368,57 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
+    # Categoria
+    if data.startswith("category_"):
+        task_data = context.user_data['task_data']
+        user_id = context.user_data.get('user_id')
+        
+        # Obter categoria selecionada
+        if data == "category_none":
+            category = None
+            category_name = "Sem categoria"
+        else:
+            category_id = int(data.replace("category_", ""))
+            from tasks import get_user_categories
+            categories = get_user_categories(user_id)
+            category = next((cat['name'] for cat in categories if cat['id'] == category_id), None)
+            category_name = category
+        
+        # Criar tarefa
+        task_id = create_task(
+            user_id=user_id,
+            title=task_data['title'],
+            priority=task_data['priority'],
+            due_date=task_data.get('due_date'),
+            category=category
+        )
+        
+        # Mensagem de confirmação
+        text = f"✅ <b>Tarefa criada!</b>\n\n"
+        text += f"📋 {task_data['title']}\n"
+        text += f"⚡ Prioridade: {task_data['priority']}\n"
+        
+        if task_data.get('due_date'):
+            date_formatted = datetime.strptime(task_data['due_date'], '%Y-%m-%d').strftime('%d/%m/%Y')
+            text += f"📅 Data: {date_formatted}\n"
+        else:
+            text += f"📭 Sem data\n"
+        
+        if category:
+            text += f"🏷️ Categoria: {category_name}\n"
+        
+        text += f"ID: <code>{task_id}</code>"
+        
+        await query.edit_message_text(text, parse_mode='HTML')
+        
+        # Limpar context
+        context.user_data.pop('creating_task', None)
+        context.user_data.pop('task_data', None)
+        context.user_data.pop('cal_year', None)
+        context.user_data.pop('cal_month', None)
+        context.user_data.pop('user_id', None)
+        return
+    
     # Calendário
     if data.startswith("cal_"):
         current_year = context.user_data.get('cal_year')
@@ -388,36 +444,55 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         elif action == "select":
-            # Data selecionada - criar tarefa
+            # Data selecionada - mostrar categorias
             context.user_data['task_data']['due_date'] = date
             
-            task_data = context.user_data['task_data']
+            # Mostrar seleção de categoria
             user_id = context.user_data.get('user_id')
+            from tasks import get_user_categories
+            categories = get_user_categories(user_id)
             
-            task_id = create_task(
-                user_id=user_id,
-                title=task_data['title'],
-                priority=task_data['priority'],
-                due_date=task_data['due_date']
-            )
+            keyboard = []
+            for cat in categories:
+                keyboard.append([InlineKeyboardButton(
+                    f"{cat['emoji']} {cat['name']}",
+                    callback_data=f"category_{cat['id']}"
+                )])
+            
+            keyboard.append([InlineKeyboardButton("❌ Sem categoria", callback_data="category_none")])
             
             date_formatted = datetime.strptime(date, '%Y-%m-%d').strftime('%d/%m/%Y')
             
             await query.edit_message_text(
-                f"✅ <b>Tarefa criada!</b>\n\n"
-                f"📋 {task_data['title']}\n"
-                f"⚡ Prioridade: {task_data['priority']}\n"
-                f"📅 Data: {date_formatted}\n"
-                f"ID: <code>{task_id}</code>",
+                f"✅ Data: <b>{date_formatted}</b>\n\n🏷️ <b>Escolha a categoria:</b>",
+                reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
+            return
+        
+        elif action == "nodate":
+            # Sem data - mostrar categorias
+            context.user_data['task_data']['due_date'] = None
             
-            # Limpar context
-            context.user_data.pop('creating_task', None)
-            context.user_data.pop('task_data', None)
-            context.user_data.pop('cal_year', None)
-            context.user_data.pop('cal_month', None)
-            context.user_data.pop('user_id', None)
+            # Mostrar seleção de categoria
+            user_id = context.user_data.get('user_id')
+            from tasks import get_user_categories
+            categories = get_user_categories(user_id)
+            
+            keyboard = []
+            for cat in categories:
+                keyboard.append([InlineKeyboardButton(
+                    f"{cat['emoji']} {cat['name']}",
+                    callback_data=f"category_{cat['id']}"
+                )])
+            
+            keyboard.append([InlineKeyboardButton("❌ Sem categoria", callback_data="category_none")])
+            
+            await query.edit_message_text(
+                f"📭 <b>Sem data definida</b>\n\n🏷️ <b>Escolha a categoria:</b>",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
         return
 
 

@@ -44,7 +44,7 @@ def get_user_tasks(user_id, status=None, category=None, due_date=None):
         query += ' AND due_date = ?'
         params.append(due_date)
     
-    query += ' ORDER BY CASE priority WHEN "Alta" THEN 1 WHEN "Média" THEN 2 ELSE 3 END, due_date ASC, created_at DESC'
+    query += ' ORDER BY category ASC, CASE priority WHEN "Alta" THEN 1 WHEN "Média" THEN 2 ELSE 3 END, due_date ASC, created_at DESC'
     
     cursor.execute(query, params)
     tasks = cursor.fetchall()
