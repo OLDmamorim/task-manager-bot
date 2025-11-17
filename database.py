@@ -98,11 +98,17 @@ def register_user(telegram_id, username=None, first_name=None, last_name=None):
 def add_default_categories(user_id):
     """Adicionar categorias padrão para novo utilizador"""
     default_categories = [
-        ('Trabalho', '💼'),
-        ('Pessoal', '🏠'),
-        ('Urgente', '🚨'),
-        ('Estudos', '📚'),
-        ('Saúde', '💪'),
+        ('Barcelos', '📍'),
+        ('Braga', '📍'),
+        ('Calibragem', '🔧'),
+        ('Famalicão', '📍'),
+        ('Guimarães', '📍'),
+        ('Mycar', '🚗'),
+        ('Paços Ferreira', '📍'),
+        ('Paredes', '📍'),
+        ('Viana do Castelo', '📍'),
+        ('Vila Verde', '📍'),
+        ('Outros', '📋'),
     ]
     
     conn = get_db()
