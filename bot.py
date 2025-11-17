@@ -141,7 +141,7 @@ async def nova_tarefa_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def tarefas_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /tarefas - Listar todas as tarefas"""
     user_id = update.effective_user.id
-    tasks = get_user_tasks(user_id, completed=False)
+    tasks = get_user_tasks(user_id, status='Pendente')
     
     if not tasks:
         await update.message.reply_text("📭 Não tens tarefas pendentes!")
@@ -158,7 +158,7 @@ async def tarefas_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def tarefas_ativas_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /tarefas_ativas - Listar tarefas pendentes com checkboxes"""
     user_id = update.effective_user.id
-    tasks = get_user_tasks(user_id, completed=False)
+    tasks = get_user_tasks(user_id, status='Pendente')
     
     if not tasks:
         await update.message.reply_text("📭 Não tens tarefas pendentes!")
@@ -188,7 +188,7 @@ async def tarefas_ativas_command(update: Update, context: ContextTypes.DEFAULT_T
 async def hoje_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /hoje - Tarefas de hoje"""
     user_id = update.effective_user.id
-    tasks = get_user_tasks(user_id, completed=False)
+    tasks = get_user_tasks(user_id, status='Pendente')
     
     today = datetime.now().date()
     today_tasks = []
@@ -219,7 +219,7 @@ async def hoje_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def concluir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /concluir"""
     user_id = update.effective_user.id
-    tasks = get_user_tasks(user_id, completed=False)
+    tasks = get_user_tasks(user_id, status='Pendente')
     
     if not tasks:
         await update.message.reply_text("📭 Não tens tarefas pendentes!")
@@ -247,7 +247,7 @@ async def concluir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def apagar_tarefa_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /apagar_tarefa"""
     user_id = update.effective_user.id
-    tasks = get_user_tasks(user_id, completed=False)
+    tasks = get_user_tasks(user_id, status='Pendente')
     
     if not tasks:
         await update.message.reply_text("📭 Não tens tarefas pendentes!")
