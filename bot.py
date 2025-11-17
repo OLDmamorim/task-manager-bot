@@ -16,7 +16,7 @@ from telegram.ext import (
     filters,
 )
 
-from database import init_db, register_user, add_default_categories
+from database import get_db, init_db, register_user, add_default_categories
 from tasks import (
     create_task, get_user_tasks, get_task_by_id, complete_task,
     delete_task, get_stats
