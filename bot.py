@@ -1,5 +1,5 @@
 """
-Task Manager Bot - Bot de Gestão de Tarefas (Versão Simplificada)
+Task Manager Bot - Bot de Gestão de Tarefas (Versão Corrigida)
 """
 import os
 import logging
@@ -48,7 +48,7 @@ def format_task_text(task):
     priority = get_priority_emoji(task['priority'])
     title = task['title']
     
-    text = f"{priority} **{title}**\n"
+    text = f"{priority} <b>{title}</b>\n"
     
     if task['due_date']:
         try:
@@ -71,7 +71,7 @@ def format_task_text(task):
         except:
             pass
     
-    text += f"   ID: `{task['id']}`\n"
+    text += f"   ID: <code>{task['id']}</code>\n"
     return text
 
 
@@ -84,11 +84,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_default_categories(user.id)
     
     text = f"""
-👋 **Olá, {user.first_name}!**
+👋 <b>Olá, {user.first_name}!</b>
 
-Bem-vindo ao **Task Manager Bot**!
+Bem-vindo ao <b>Task Manager Bot</b>!
 
-📋 **Comandos principais:**
+📋 <b>Comandos principais:</b>
 /nova_tarefa - Criar tarefa
 /tarefas_ativas - Ver tarefas com checkboxes
 /tarefas - Ver todas as tarefas
@@ -99,15 +99,15 @@ Bem-vindo ao **Task Manager Bot**!
 
 Digite /help para ver todos os comandos!
 """
-    await update.message.reply_text(text, parse_mode='Markdown')
+    await update.message.reply_text(text, parse_mode='HTML')
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /help"""
     text = """
-📚 **Comandos Disponíveis:**
+📚 <b>Comandos Disponíveis:</b>
 
-**Tarefas:**
+<b>Tarefas:</b>
 /nova_tarefa - Criar nova tarefa
 /tarefas_ativas - Ver tarefas pendentes (com checkboxes)
 /tarefas - Ver todas as tarefas
@@ -115,13 +115,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /concluir - Marcar como concluída
 /apagar_tarefa - Apagar tarefa
 
-**Estatísticas:**
+<b>Estatísticas:</b>
 /stats - Ver estatísticas
 
-**Ajuda:**
+<b>Ajuda:</b>
 /help - Mostrar esta mensagem
 """
-    await update.message.reply_text(text, parse_mode='Markdown')
+    await update.message.reply_text(text, parse_mode='HTML')
 
 
 # ==================== CRIAR TAREFA ====================
@@ -132,8 +132,8 @@ async def nova_tarefa_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data['task_data'] = {}
     context.user_data['user_id'] = update.effective_user.id
     
-    text = "📝 **Criar Nova Tarefa**\n\nEnvie o **título** da tarefa:"
-    await update.message.reply_text(text, parse_mode='Markdown')
+    text = "📝 <b>Criar Nova Tarefa</b>\n\nEnvie o <b>título</b> da tarefa:"
+    await update.message.reply_text(text, parse_mode='HTML')
 
 
 # ==================== LISTAR TAREFAS ====================
@@ -147,12 +147,12 @@ async def tarefas_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📭 Não tens tarefas pendentes!")
         return
     
-    text = "📋 **Tarefas Pendentes:**\n\n"
+    text = "📋 <b>Tarefas Pendentes:</b>\n\n"
     
     for task in tasks:
         text += format_task_text(task) + "\n"
     
-    await update.message.reply_text(text, parse_mode='Markdown')
+    await update.message.reply_text(text, parse_mode='HTML')
 
 
 async def tarefas_ativas_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -179,9 +179,9 @@ async def tarefas_ativas_command(update: Update, context: ContextTypes.DEFAULT_T
     keyboard.append([InlineKeyboardButton("❌ Fechar", callback_data="cancel")])
     
     await update.message.reply_text(
-        "✅ **Tarefas Ativas**\n\nClica para marcar como concluída:",
+        "✅ <b>Tarefas Ativas</b>\n\nClica para marcar como concluída:",
         reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
+        parse_mode='HTML'
     )
 
 
@@ -206,12 +206,12 @@ async def hoje_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📅 Não tens tarefas para hoje!")
         return
     
-    text = "📅 **Tarefas de Hoje:**\n\n"
+    text = "📅 <b>Tarefas de Hoje:</b>\n\n"
     
     for task in today_tasks:
         text += format_task_text(task) + "\n"
     
-    await update.message.reply_text(text, parse_mode='Markdown')
+    await update.message.reply_text(text, parse_mode='HTML')
 
 
 # ==================== CONCLUIR TAREFA ====================
@@ -236,9 +236,9 @@ async def concluir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard.append([InlineKeyboardButton("❌ Cancelar", callback_data="cancel")])
     
     await update.message.reply_text(
-        "✅ **Concluir Tarefa**\n\nSelecione a tarefa:",
+        "✅ <b>Concluir Tarefa</b>\n\nSelecione a tarefa:",
         reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
+        parse_mode='HTML'
     )
 
 
@@ -264,9 +264,9 @@ async def apagar_tarefa_command(update: Update, context: ContextTypes.DEFAULT_TY
     keyboard.append([InlineKeyboardButton("❌ Cancelar", callback_data="cancel")])
     
     await update.message.reply_text(
-        "🗑️ **Apagar Tarefa**\n\nSelecione a tarefa:",
+        "🗑️ <b>Apagar Tarefa</b>\n\nSelecione a tarefa:",
         reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode='Markdown'
+        parse_mode='HTML'
     )
 
 
@@ -278,18 +278,18 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     stats = get_stats(user_id)
     
     text = f"""
-📊 **Suas Estatísticas**
+📊 <b>Suas Estatísticas</b>
 
-📋 Total de tarefas: **{stats['total']}**
-✅ Concluídas: **{stats['completed']}**
-⏳ Pendentes: **{stats['pending']}**
-📈 Taxa de conclusão: **{stats['completion_rate']:.1f}%**
+📋 Total de tarefas: <b>{stats['total']}</b>
+✅ Concluídas: <b>{stats['completed']}</b>
+⏳ Pendentes: <b>{stats['pending']}</b>
+📈 Taxa de conclusão: <b>{stats['completion_rate']:.1f}%</b>
 
-🎯 **Hoje:** {stats['completed_today']} concluída(s)
-📅 **Esta semana:** {stats['completed_week']} concluída(s)
+🎯 <b>Hoje:</b> {stats['completed_today']} concluída(s)
+📅 <b>Esta semana:</b> {stats['completed_week']} concluída(s)
 """
     
-    await update.message.reply_text(text, parse_mode='Markdown')
+    await update.message.reply_text(text, parse_mode='HTML')
 
 
 # ==================== CALLBACK HANDLER ====================
@@ -314,8 +314,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if task:
             complete_task(task_id)
             await query.edit_message_text(
-                f"✅ **Tarefa concluída!**\n\n📋 {task['title']}\n\n🎉 Parabéns!",
-                parse_mode='Markdown'
+                f"✅ <b>Tarefa concluída!</b>\n\n📋 {task['title']}\n\n🎉 Parabéns!",
+                parse_mode='HTML'
             )
         return
     
@@ -327,8 +327,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if task:
             complete_task(task_id)
             await query.edit_message_text(
-                f"✅ **Tarefa concluída!**\n\n📋 {task['title']}\n\n🎉 Parabéns!",
-                parse_mode='Markdown'
+                f"✅ <b>Tarefa concluída!</b>\n\n📋 {task['title']}\n\n🎉 Parabéns!",
+                parse_mode='HTML'
             )
         return
     
@@ -340,8 +340,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if task:
             delete_task(task_id)
             await query.edit_message_text(
-                f"🗑️ **Tarefa apagada!**\n\n📋 {task['title']}",
-                parse_mode='Markdown'
+                f"🗑️ <b>Tarefa apagada!</b>\n\n📋 {task['title']}",
+                parse_mode='HTML'
             )
         return
     
@@ -357,9 +357,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['cal_month'] = now.month
         
         await query.edit_message_text(
-            f"✅ Prioridade: **{priority}**\n\n📅 **Escolhe a data:**",
+            f"✅ Prioridade: <b>{priority}</b>\n\n📅 <b>Escolhe a data:</b>",
             reply_markup=calendar,
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         return
     
@@ -404,12 +404,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             date_formatted = datetime.strptime(date, '%Y-%m-%d').strftime('%d/%m/%Y')
             
             await query.edit_message_text(
-                f"✅ **Tarefa criada!**\n\n"
+                f"✅ <b>Tarefa criada!</b>\n\n"
                 f"📋 {task_data['title']}\n"
                 f"⚡ Prioridade: {task_data['priority']}\n"
                 f"📅 Data: {date_formatted}\n"
-                f"ID: `{task_id}`",
-                parse_mode='Markdown'
+                f"ID: <code>{task_id}</code>",
+                parse_mode='HTML'
             )
             
             # Limpar context
@@ -439,11 +439,27 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         
         await update.message.reply_text(
-            "⚡ **Escolha a prioridade:**",
+            "⚡ <b>Escolha a prioridade:</b>",
             reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
+            parse_mode='HTML'
         )
         return
+
+
+# ==================== ERROR HANDLER ====================
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler global para erros"""
+    logger.error(f"Erro ao processar update: {context.error}")
+    
+    # Tentar notificar o utilizador
+    try:
+        if update and update.effective_message:
+            await update.effective_message.reply_text(
+                "❌ Ocorreu um erro ao processar o seu pedido. Por favor, tente novamente."
+            )
+    except:
+        pass
 
 
 # ==================== MAIN ====================
@@ -486,6 +502,9 @@ def main():
     # Handlers
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    
+    # Error handler
+    app.add_error_handler(error_handler)
     
     # Configurar comandos
     app.post_init = setup_commands
