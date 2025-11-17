@@ -76,7 +76,6 @@ def format_task_text(task):
         except:
             pass
     
-    text += f"   ID: <code>{task['id']}</code>\n"
     return text
 
 
@@ -405,9 +404,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"📭 Sem data\n"
         
         if category:
-            text += f"🏷️ Categoria: {category_name}\n"
-        
-        text += f"ID: <code>{task_id}</code>"
+            text += f"🏷️ Categoria: {category_name}"
         
         await query.edit_message_text(text, parse_mode='HTML')
         
