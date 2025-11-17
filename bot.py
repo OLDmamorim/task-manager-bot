@@ -14,6 +14,7 @@ from telegram.ext import (
     MessageHandler,
     ContextTypes,
     filters,
+    JobQueue,
 )
 
 from database import get_db, init_db, register_user, add_default_categories
@@ -323,6 +324,68 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
     
+    # Concluir tarefa do lembrete diário
+    if data.startswith("daily_complete_"):
+        task_id = int(data.replace("daily_complete_", ""))
+        task = get_task_by_id(task_id)
+        
+        if task:
+            complete_task(task_id)
+            
+            # Editar a mensagem removendo a tarefa concluída
+            user_id = query.from_user.id
+            remaining_tasks = get_user_tasks(user_id, status='Pendente')
+            
+            if not remaining_tasks:
+                # Todas as tarefas concluídas
+                await query.edit_message_text(
+                    f"🎉 <b>Parabéns!</b>\n\nTodas as tarefas foram concluídas!\n✅ {task['title']}",
+                    parse_mode='HTML'
+                )
+            else:
+                # Atualizar lista sem a tarefa concluída
+                text = "🌅 <b>Bom dia!</b>\n\n"
+                text += "📋 <b>Tarefas Pendentes:</b>\n\n"
+                
+                keyboard = []
+                for t in remaining_tasks:
+                    priority = get_priority_emoji(t['priority'])
+                    title = t['title']
+                    task_text = f"{priority} {title}"
+                    
+                    if t['category'] and t['category'] != '':
+                        task_text += f" 🏷️ {t['category']}"
+                    
+                    if t['due_date']:
+                        try:
+                            date_obj = datetime.strptime(t['due_date'], '%Y-%m-%d')
+                            today = datetime.now().date()
+                            task_date = date_obj.date()
+                            
+                            if task_date == today:
+                                task_text += " 📅 Hoje"
+                            elif task_date == today + timedelta(days=1):
+                                task_text += " 📅 Amanhã"
+                            elif task_date < today:
+                                days = (today - task_date).days
+                                task_text += f" ⚠️ Atrasada {days}d"
+                        except:
+                            pass
+                    
+                    keyboard.append([InlineKeyboardButton(
+                        f"☐ {task_text}",
+                        callback_data=f"daily_complete_{t['id']}"
+                    )])
+                
+                text += f"\n✅ <i>{task['title']} concluída!</i>"
+                
+                await query.edit_message_text(
+                    text,
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode='HTML'
+                )
+        return
+    
     # Concluir tarefa
     if data.startswith("complete_"):
         task_id = int(data.replace("complete_", ""))
@@ -518,6 +581,87 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 
+# ==================== DAILY REMINDER ====================
+
+async def send_daily_tasks(context: ContextTypes.DEFAULT_TYPE):
+    """Enviar tarefas pendentes diariamente para todos os utilizadores"""
+    logger.info("🔔 Enviando lembretes diários...")
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Obter todos os utilizadores
+    cursor.execute('SELECT telegram_id FROM users')
+    users = cursor.fetchall()
+    conn.close()
+    
+    for user in users:
+        user_id = user['telegram_id']
+        
+        try:
+            # Obter tarefas pendentes
+            tasks = get_user_tasks(user_id, status='Pendente')
+            
+            if not tasks:
+                # Não enviar mensagem se não houver tarefas
+                continue
+            
+            # Criar mensagem
+            text = "🌅 <b>Bom dia!</b>\n\n"
+            text += "📋 <b>Tarefas Pendentes:</b>\n\n"
+            
+            # Criar teclado com checkboxes
+            keyboard = []
+            
+            for task in tasks:
+                priority = get_priority_emoji(task['priority'])
+                title = task['title']
+                
+                # Linha da tarefa
+                task_text = f"{priority} {title}"
+                
+                # Adicionar categoria se existir
+                if task['category'] and task['category'] != '':
+                    task_text += f" 🏷️ {task['category']}"
+                
+                # Adicionar data se existir
+                if task['due_date']:
+                    try:
+                        date_obj = datetime.strptime(task['due_date'], '%Y-%m-%d')
+                        today = datetime.now().date()
+                        task_date = date_obj.date()
+                        
+                        if task_date == today:
+                            task_text += " 📅 Hoje"
+                        elif task_date == today + timedelta(days=1):
+                            task_text += " 📅 Amanhã"
+                        elif task_date < today:
+                            days = (today - task_date).days
+                            task_text += f" ⚠️ Atrasada {days}d"
+                    except:
+                        pass
+                
+                # Botão com checkbox
+                keyboard.append([InlineKeyboardButton(
+                    f"☐ {task_text}",
+                    callback_data=f"daily_complete_{task['id']}"
+                )])
+            
+            # Enviar mensagem
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+            
+            logger.info(f"✅ Lembrete enviado para user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao enviar lembrete para user {user_id}: {e}")
+            continue
+
+
 # ==================== ERROR HANDLER ====================
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -581,8 +725,18 @@ def main():
     # Configurar comandos
     app.post_init = setup_commands
     
+    # Agendar envio diário de tarefas às 8:30
+    job_queue = app.job_queue
+    job_queue.run_daily(
+        send_daily_tasks,
+        time=datetime.strptime('08:30', '%H:%M').time(),
+        days=(0, 1, 2, 3, 4, 5, 6),  # Todos os dias da semana
+        name='daily_tasks_reminder'
+    )
+    
     # Iniciar bot
     logger.info("🤖 Bot iniciado!")
+    logger.info("🔔 Lembrete diário agendado para 8:30")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
