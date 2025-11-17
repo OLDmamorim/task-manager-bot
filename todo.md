@@ -26,3 +26,10 @@
 - [x] AttributeError: 'NoneType' object has no attribute 'id'
 - [x] Corrigir acesso a user_id em callbacks (usar query.from_user.id)
 - [ ] Testar novamente
+
+
+## Erro is_overdue
+
+- [ ] AttributeError: 'dict' object has no attribute 'date'
+- [ ] Corrigir função is_overdue() em utils.py
+- [ ] Testar comandos /tarefas, /hoje, /tarefas_ativas

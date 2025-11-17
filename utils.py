@@ -36,14 +36,24 @@ def get_priority_emoji(priority):
     return emojis.get(priority, '⚪')
 
 
-def get_status_emoji(status):
-    """Obter emoji para status"""
-    emojis = {
-        'Pendente': '⏳',
-        'Concluída': '✅',
-        'Atrasada': '⚠️'
-    }
-    return emojis.get(status, '❓')
+def get_status_emoji(task):
+    """Obter emoji para status da tarefa"""
+    if isinstance(task, dict):
+        # Se for um dicionário (task), calcular status
+        if task.get('completed'):
+            return '✅'  # Concluída
+        elif is_overdue(task.get('due_date')):
+            return '⚠️'  # Atrasada
+        else:
+            return '⏳'  # Pendente
+    else:
+        # Se for uma string (status), usar mapeamento antigo
+        emojis = {
+            'Pendente': '⏳',
+            'Concluída': '✅',
+            'Atrasada': '⚠️'
+        }
+        return emojis.get(task, '❓')
 
 
 def generate_google_calendar_link(title, description, start_date, start_time, duration_minutes):
