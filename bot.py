@@ -365,7 +365,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Criar tarefa
             task_data = context.user_data['task_data']
             task_id = create_task(
-                user_id=update.effective_user.id,
+                user_id=query.from_user.id,
                 title=task_data['title'],
                 priority=task_data['priority'],
                 due_date=task_data['due_date']

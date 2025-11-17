@@ -14,8 +14,15 @@
 
 ## Problema Reportado
 
-- [ ] Apenas /stats funciona, outros comandos não respondem
+- [x] Apenas /stats funciona, outros comandos não respondem (CORRIGIDO)
 - [x] Verificar logs do Railway
 - [x] Identificar erro com python-telegram-bot-calendar (ModuleNotFoundError)
-- [ ] Corrigir erro
+- [x] Corrigir erro (criado calendar_utils.py personalizado)
 - [ ] Testar todos os comandos
+
+
+## Novo Erro
+
+- [ ] AttributeError: 'NoneType' object has no attribute 'id'
+- [ ] Corrigir acesso a user_id em callbacks
+- [ ] Testar novamente
