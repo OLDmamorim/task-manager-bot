@@ -266,9 +266,20 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler para callbacks dos botões"""
     query = update.callback_query
+    
+    if not query:
+        logger.error("Callback query is None")
+        return
+    
     await query.answer()
     
     data = query.data
+    user_id = query.from_user.id if query.from_user else None
+    
+    if not user_id:
+        logger.error("User ID is None in callback")
+        await query.edit_message_text("❌ Erro: Não foi possível identificar o utilizador.")
+        return
     
     # Cancelar
     if data == "cancel":
@@ -365,7 +376,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Criar tarefa
             task_data = context.user_data['task_data']
             task_id = create_task(
-                user_id=query.from_user.id,
+                user_id=user_id,
                 title=task_data['title'],
                 priority=task_data['priority'],
                 due_date=task_data['due_date']

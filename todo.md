@@ -23,6 +23,6 @@
 
 ## Novo Erro
 
-- [ ] AttributeError: 'NoneType' object has no attribute 'id'
-- [ ] Corrigir acesso a user_id em callbacks
+- [x] AttributeError: 'NoneType' object has no attribute 'id'
+- [x] Corrigir acesso a user_id em callbacks (usar query.from_user.id)
 - [ ] Testar novamente
