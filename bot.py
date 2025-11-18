@@ -55,13 +55,14 @@ def generate_google_calendar_link(title, date, time=None, category=None):
     if not time:
         time = "09:00"
     
-    # Converter hora para formato do Google Calendar (adicionar 1h de GMT para Portugal)
+    # Converter hora para formato do Google Calendar
     hour, minute = time.split(':')
-    start_hour = int(hour) - 1  # Ajustar para UTC (Portugal é UTC+1)
+    start_hour = int(hour)
     end_hour = start_hour + 1  # Duração de 1 hora
     
-    start_datetime = f"{date_formatted}T{start_hour:02d}{minute}00Z"
-    end_datetime = f"{date_formatted}T{end_hour:02d}{minute}00Z"
+    # Usar formato sem timezone (deixar o Google Calendar interpretar)
+    start_datetime = f"{date_formatted}T{start_hour:02d}{minute}00"
+    end_datetime = f"{date_formatted}T{end_hour:02d}{minute}00"
     
     # Título do evento
     event_title = quote(title)
