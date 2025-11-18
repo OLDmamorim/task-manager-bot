@@ -43,12 +43,25 @@ def get_priority_emoji(priority):
     return emojis.get(priority, '⚪')
 
 
-def generate_google_calendar_link(title, date, category=None):
+def generate_google_calendar_link(title, date, time=None, category=None):
     """Gerar link para adicionar evento ao Google Calendar"""
     from urllib.parse import quote
+    from datetime import datetime, timedelta
     
-    # Formato: YYYYMMDD
+    # Formato: YYYYMMDDTHHMMSSZ (com hora)
     date_formatted = date.replace('-', '')
+    
+    # Se não houver hora, usar 09:00 por padrão
+    if not time:
+        time = "09:00"
+    
+    # Converter hora para formato do Google Calendar (adicionar 1h de GMT para Portugal)
+    hour, minute = time.split(':')
+    start_hour = int(hour) - 1  # Ajustar para UTC (Portugal é UTC+1)
+    end_hour = start_hour + 1  # Duração de 1 hora
+    
+    start_datetime = f"{date_formatted}T{start_hour:02d}{minute}00Z"
+    end_datetime = f"{date_formatted}T{end_hour:02d}{minute}00Z"
     
     # Título do evento
     event_title = quote(title)
@@ -62,7 +75,7 @@ def generate_google_calendar_link(title, date, category=None):
     # Formato: https://calendar.google.com/calendar/render?action=TEMPLATE&text=TITLE&dates=START/END&details=DESCRIPTION
     url = f"https://calendar.google.com/calendar/render?action=TEMPLATE"
     url += f"&text={event_title}"
-    url += f"&dates={date_formatted}/{date_formatted}"
+    url += f"&dates={start_datetime}/{end_datetime}"
     
     if description:
         url += f"&details={description}"
@@ -620,6 +633,36 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
+    # Hora (após selecionar data)
+    if data.startswith("time_"):
+        # Guardar hora selecionada
+        if data == "time_none":
+            context.user_data['task_data']['time'] = None
+        else:
+            time = data.replace("time_", "")
+            context.user_data['task_data']['time'] = time
+        
+        # Mostrar seleção de categoria
+        user_id = context.user_data.get('user_id')
+        from tasks import get_user_categories
+        categories = get_user_categories(user_id)
+        
+        keyboard = []
+        for cat in categories:
+            keyboard.append([InlineKeyboardButton(
+                f"{cat['emoji']} {cat['name']}",
+                callback_data=f"category_{cat['id']}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("❌ Sem categoria", callback_data="category_none")])
+        
+        await query.edit_message_text(
+            f"🏷️ <b>Escolha a categoria:</b>",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='HTML'
+        )
+        return
+    
     # Categoria
     if data.startswith("category_"):
         task_data = context.user_data['task_data']
@@ -665,6 +708,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             gcal_link = generate_google_calendar_link(
                 title=task_data['title'],
                 date=task_data['due_date'],
+                time=task_data.get('time'),
                 category=category
             )
             keyboard = InlineKeyboardMarkup([[
@@ -710,27 +754,27 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         elif action == "select":
-            # Data selecionada - mostrar categorias
+            # Data selecionada - mostrar seleção de hora
             context.user_data['task_data']['due_date'] = date
             
-            # Mostrar seleção de categoria
-            user_id = context.user_data.get('user_id')
-            from tasks import get_user_categories
-            categories = get_user_categories(user_id)
-            
+            # Mostrar seleção de hora
             keyboard = []
-            for cat in categories:
-                keyboard.append([InlineKeyboardButton(
-                    f"{cat['emoji']} {cat['name']}",
-                    callback_data=f"category_{cat['id']}"
-                )])
+            hours = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00']
             
-            keyboard.append([InlineKeyboardButton("❌ Sem categoria", callback_data="category_none")])
+            # Criar botões de hora em 2 colunas
+            for i in range(0, len(hours), 2):
+                row = []
+                row.append(InlineKeyboardButton(hours[i], callback_data=f"time_{hours[i]}"))
+                if i + 1 < len(hours):
+                    row.append(InlineKeyboardButton(hours[i+1], callback_data=f"time_{hours[i+1]}"))
+                keyboard.append(row)
+            
+            keyboard.append([InlineKeyboardButton("⏰ Sem hora específica", callback_data="time_none")])
             
             date_formatted = datetime.strptime(date, '%Y-%m-%d').strftime('%d/%m/%Y')
             
             await query.edit_message_text(
-                f"✅ Data: <b>{date_formatted}</b>\n\n🏷️ <b>Escolha a categoria:</b>",
+                f"✅ Data: <b>{date_formatted}</b>\n\n⏰ <b>Escolha a hora:</b>",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML'
             )
