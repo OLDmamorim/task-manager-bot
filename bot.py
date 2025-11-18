@@ -368,10 +368,11 @@ async def categoria_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /stats"""
-    user_id = update.effective_user.id
-    stats = get_stats(user_id)
-    
-    text = f"""
+    try:
+        user_id = update.effective_user.id
+        stats = get_stats(user_id)
+        
+        text = f"""
 📊 <b>Suas Estatísticas</b>
 
 📋 Total de tarefas: <b>{stats['total']}</b>
@@ -382,8 +383,14 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🎯 <b>Hoje:</b> {stats['completed_today']} concluída(s)
 📅 <b>Esta semana:</b> {stats['completed_week']} concluída(s)
 """
-    
-    await update.message.reply_text(text, parse_mode='HTML')
+        
+        await update.message.reply_text(text, parse_mode='HTML')
+    except Exception as e:
+        logger.error(f"Erro no comando /stats: {e}", exc_info=True)
+        await update.message.reply_text(
+            "❌ Erro ao obter estatísticas. Por favor, tente novamente.",
+            parse_mode='HTML'
+        )
 
 
 # ==================== CALLBACK HANDLER ====================
@@ -1030,7 +1037,13 @@ async def send_today_tasks(context: ContextTypes.DEFAULT_TYPE):
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler global para erros"""
+    import traceback
     logger.error(f"Erro ao processar update: {context.error}")
+    logger.error(f"Traceback completo:\n{''.join(traceback.format_exception(type(context.error), context.error, context.error.__traceback__))}")
+    
+    # Log adicional do update que causou o erro
+    if update:
+        logger.error(f"Update que causou erro: {update}")
     
     # Tentar notificar o utilizador
     try:
