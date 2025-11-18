@@ -86,10 +86,23 @@ def register_user(telegram_id, username=None, first_name=None, last_name=None):
     conn = get_db()
     cursor = conn.cursor()
     
-    cursor.execute('''
-        INSERT OR REPLACE INTO users (telegram_id, username, first_name, last_name)
-        VALUES (?, ?, ?, ?)
-    ''', (telegram_id, username, first_name, last_name))
+    # Verificar se o utilizador já existe
+    cursor.execute('SELECT telegram_id FROM users WHERE telegram_id = ?', (telegram_id,))
+    exists = cursor.fetchone()
+    
+    if exists:
+        # Atualizar dados do utilizador existente
+        cursor.execute('''
+            UPDATE users 
+            SET username = ?, first_name = ?, last_name = ?
+            WHERE telegram_id = ?
+        ''', (username, first_name, last_name, telegram_id))
+    else:
+        # Inserir novo utilizador
+        cursor.execute('''
+            INSERT INTO users (telegram_id, username, first_name, last_name)
+            VALUES (?, ?, ?, ?)
+        ''', (telegram_id, username, first_name, last_name))
     
     conn.commit()
     conn.close()
