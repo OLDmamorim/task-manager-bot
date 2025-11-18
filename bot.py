@@ -130,7 +130,21 @@ Bem-vindo ao <b>Task Manager Bot</b>!
 
 Digite /help para ver todos os comandos!
 """
-    await update.message.reply_text(text, parse_mode='HTML')
+    
+    # Menu inline com atalhos rápidos
+    keyboard = [
+        [InlineKeyboardButton("➕ Nova Tarefa", callback_data="menu_nova_tarefa")],
+        [InlineKeyboardButton("📋 Ver Tarefas", callback_data="menu_tarefas"),
+         InlineKeyboardButton("📅 Hoje", callback_data="menu_hoje")],
+        [InlineKeyboardButton("🏷️ Categorias", callback_data="menu_categorias"),
+         InlineKeyboardButton("📊 Stats", callback_data="menu_stats")],
+    ]
+    
+    await update.message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -303,6 +317,41 @@ async def apagar_tarefa_command(update: Update, context: ContextTypes.DEFAULT_TY
 
 # ==================== ESTATÍSTICAS ====================
 
+async def categoria_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando /categoria - Filtrar tarefas por categoria"""
+    user_id = update.effective_user.id
+    from tasks import get_user_categories
+    
+    categories = get_user_categories(user_id)
+    
+    if not categories:
+        await update.message.reply_text(
+            "❌ Não tens categorias criadas.",
+            parse_mode='HTML'
+        )
+        return
+    
+    # Criar teclado com categorias
+    keyboard = []
+    for cat in categories:
+        keyboard.append([InlineKeyboardButton(
+            f"{cat['emoji']} {cat['name']}",
+            callback_data=f"filter_cat_{cat['id']}"
+        )])
+    
+    # Botão para ver todas
+    keyboard.append([InlineKeyboardButton(
+        "📋 Ver Todas as Tarefas",
+        callback_data="filter_cat_all"
+    )])
+    
+    await update.message.reply_text(
+        "🏷️ <b>Filtrar tarefas por categoria:</b>\n\nEscolhe uma categoria:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode='HTML'
+    )
+
+
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /stats"""
     user_id = update.effective_user.id
@@ -335,6 +384,121 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Cancelar
     if data == "cancel":
         await query.edit_message_text("❌ Operação cancelada.")
+        return
+    
+    # Menu inline - Atalhos rápidos
+    if data.startswith("menu_"):
+        user_id = query.from_user.id
+        
+        if data == "menu_nova_tarefa":
+            await query.message.reply_text("📝 Use o comando /nova_tarefa para criar uma nova tarefa.")
+            return
+        
+        elif data == "menu_tarefas":
+            tasks = get_user_tasks(user_id, status='Pendente')
+            if not tasks:
+                await query.edit_message_text("✅ Nenhuma tarefa pendente!")
+                return
+            
+            text = "📋 <b>Tarefas Pendentes:</b>\n\n"
+            for task in tasks:
+                text += format_task_text(task) + "\n"
+            
+            await query.edit_message_text(text, parse_mode='HTML')
+            return
+        
+        elif data == "menu_hoje":
+            from datetime import date
+            today = date.today().strftime('%Y-%m-%d')
+            tasks = get_user_tasks(user_id, status='Pendente', due_date=today)
+            
+            if not tasks:
+                await query.edit_message_text("✅ Nenhuma tarefa para hoje!")
+                return
+            
+            text = "📅 <b>Tarefas de Hoje:</b>\n\n"
+            for task in tasks:
+                text += format_task_text(task) + "\n"
+            
+            await query.edit_message_text(text, parse_mode='HTML')
+            return
+        
+        elif data == "menu_categorias":
+            from tasks import get_user_categories
+            categories = get_user_categories(user_id)
+            
+            if not categories:
+                await query.edit_message_text("❌ Não tens categorias criadas.")
+                return
+            
+            keyboard = []
+            for cat in categories:
+                keyboard.append([InlineKeyboardButton(
+                    f"{cat['emoji']} {cat['name']}",
+                    callback_data=f"filter_cat_{cat['id']}"
+                )])
+            keyboard.append([InlineKeyboardButton(
+                "📋 Ver Todas as Tarefas",
+                callback_data="filter_cat_all"
+            )])
+            
+            await query.edit_message_text(
+                "🏷️ <b>Filtrar tarefas por categoria:</b>\n\nEscolhe uma categoria:",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+            return
+        
+        elif data == "menu_stats":
+            stats = get_stats(user_id)
+            text = f"""
+📊 <b>Estatísticas:</b>
+
+📋 Total de tarefas: {stats['total']}
+✅ Concluídas: {stats['completed']}
+⏳ Pendentes: {stats['pending']}
+📅 Para hoje: {stats['today']}
+🔥 Taxa de conclusão: {stats['completion_rate']:.1f}%
+"""
+            await query.edit_message_text(text, parse_mode='HTML')
+            return
+    
+    # Filtrar por categoria
+    if data.startswith("filter_cat_"):
+        user_id = query.from_user.id
+        
+        if data == "filter_cat_all":
+            # Mostrar todas as tarefas
+            tasks = get_user_tasks(user_id, status='Pendente')
+            title = "📋 <b>Todas as Tarefas Pendentes:</b>"
+        else:
+            # Filtrar por categoria específica
+            cat_id = int(data.replace("filter_cat_", ""))
+            from tasks import get_user_categories
+            categories = get_user_categories(user_id)
+            category = next((cat for cat in categories if cat['id'] == cat_id), None)
+            
+            if not category:
+                await query.edit_message_text("❌ Categoria não encontrada.")
+                return
+            
+            # Obter tarefas da categoria
+            tasks = get_user_tasks(user_id, status='Pendente', category=category['name'])
+            title = f"🏷️ <b>Tarefas: {category['emoji']} {category['name']}</b>"
+        
+        if not tasks:
+            await query.edit_message_text(
+                f"{title}\n\n✅ Nenhuma tarefa pendente!",
+                parse_mode='HTML'
+            )
+            return
+        
+        # Formatar lista de tarefas
+        text = f"{title}\n\n"
+        for task in tasks:
+            text += format_task_text(task) + "\n"
+        
+        await query.edit_message_text(text, parse_mode='HTML')
         return
     
     # Checkbox - Marcar como concluída
@@ -648,14 +812,66 @@ async def send_daily_tasks(context: ContextTypes.DEFAULT_TYPE):
                 # Não enviar mensagem se não houver tarefas
                 continue
             
+            # Separar tarefas atrasadas e normais
+            today = datetime.now().date()
+            overdue_tasks = []
+            regular_tasks = []
+            
+            for task in tasks:
+                if task['due_date']:
+                    try:
+                        task_date = datetime.strptime(task['due_date'], '%Y-%m-%d').date()
+                        if task_date < today:
+                            overdue_tasks.append(task)
+                        else:
+                            regular_tasks.append(task)
+                    except:
+                        regular_tasks.append(task)
+                else:
+                    regular_tasks.append(task)
+            
             # Criar mensagem
             text = "🌅 <b>Bom dia!</b>\n\n"
+            
+            # Alerta de tarefas atrasadas
+            if overdue_tasks:
+                text += f"🚨 <b>ATENÇÃO: {len(overdue_tasks)} tarefa(s) atrasada(s)!</b>\n\n"
+            
             text += "📋 <b>Tarefas Pendentes:</b>\n\n"
             
             # Criar teclado com checkboxes
             keyboard = []
             
-            for task in tasks:
+            # Adicionar tarefas atrasadas primeiro (com emoji 🚨)
+            for task in overdue_tasks:
+                title = task['title']
+                
+                # Linha da tarefa com emoji de alerta
+                task_text = f"🚨 {title}"
+                
+                # Adicionar categoria se existir
+                if task['category'] and task['category'] != '':
+                    task_text += f" 🏷️ {task['category']}"
+                
+                # Adicionar dias de atraso
+                if task['due_date']:
+                    try:
+                        date_obj = datetime.strptime(task['due_date'], '%Y-%m-%d')
+                        today = datetime.now().date()
+                        task_date = date_obj.date()
+                        days = (today - task_date).days
+                        task_text += f" ⚠️ Atrasada {days}d"
+                    except:
+                        pass
+                
+                # Botão com checkbox
+                keyboard.append([InlineKeyboardButton(
+                    f"☐ {task_text}",
+                    callback_data=f"daily_complete_{task['id']}"
+                )])
+            
+            # Adicionar tarefas regulares (normais)
+            for task in regular_tasks:
                 priority = get_priority_emoji(task['priority'])
                 title = task['title']
                 
@@ -677,9 +893,9 @@ async def send_daily_tasks(context: ContextTypes.DEFAULT_TYPE):
                             task_text += " 📅 Hoje"
                         elif task_date == today + timedelta(days=1):
                             task_text += " 📅 Amanhã"
-                        elif task_date < today:
-                            days = (today - task_date).days
-                            task_text += f" ⚠️ Atrasada {days}d"
+                        else:
+                            days = (task_date - today).days
+                            task_text += f" 📅 Em {days}d"
                     except:
                         pass
                 
@@ -701,6 +917,67 @@ async def send_daily_tasks(context: ContextTypes.DEFAULT_TYPE):
             
         except Exception as e:
             logger.error(f"❌ Erro ao enviar lembrete para user {user_id}: {e}")
+            continue
+
+
+async def send_today_tasks(context: ContextTypes.DEFAULT_TYPE):
+    """Enviar tarefas do dia às 9:00"""
+    logger.info("🔔 Enviando tarefas do dia...")
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Obter todos os utilizadores
+    cursor.execute('SELECT telegram_id FROM users')
+    users = cursor.fetchall()
+    conn.close()
+    
+    today = datetime.now().date().strftime('%Y-%m-%d')
+    
+    for user in users:
+        user_id = user['telegram_id']
+        
+        try:
+            # Obter tarefas de hoje
+            tasks = get_user_tasks(user_id, status='Pendente', due_date=today)
+            
+            if not tasks:
+                # Não enviar se não houver tarefas para hoje
+                continue
+            
+            # Criar mensagem
+            text = f"🔔 <b>Lembrete: Tarefas de HOJE!</b>\n\n"
+            text += f"📅 Tens <b>{len(tasks)} tarefa(s)</b> para hoje:\n\n"
+            
+            # Criar teclado com checkboxes
+            keyboard = []
+            
+            for task in tasks:
+                priority = get_priority_emoji(task['priority'])
+                title = task['title']
+                
+                task_text = f"{priority} {title}"
+                
+                if task['category'] and task['category'] != '':
+                    task_text += f" 🏷️ {task['category']}"
+                
+                keyboard.append([InlineKeyboardButton(
+                    f"☐ {task_text}",
+                    callback_data=f"daily_complete_{task['id']}"
+                )])
+            
+            # Enviar mensagem
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+            
+            logger.info(f"✅ Tarefas do dia enviadas para user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Erro ao enviar tarefas do dia para user {user_id}: {e}")
             continue
 
 
@@ -734,6 +1011,7 @@ async def setup_commands(app):
         BotCommand("concluir", "Marcar como concluída"),
         BotCommand("apagar_tarefa", "Apagar tarefa"),
         BotCommand("stats", "Ver estatísticas"),
+        BotCommand("categoria", "Filtrar tarefas por categoria"),
     ]
     await app.bot.set_my_commands(commands)
 
@@ -756,6 +1034,7 @@ def main():
     app.add_handler(CommandHandler('concluir', concluir_command))
     app.add_handler(CommandHandler('apagar_tarefa', apagar_tarefa_command))
     app.add_handler(CommandHandler('stats', stats_command))
+    app.add_handler(CommandHandler('categoria', categoria_command))
     
     # Handlers
     app.add_handler(CallbackQueryHandler(callback_handler))
@@ -776,9 +1055,18 @@ def main():
         name='daily_tasks_reminder'
     )
     
+    # Agendar envio de tarefas do dia às 9:00
+    job_queue.run_daily(
+        send_today_tasks,
+        time=datetime.strptime('09:00', '%H:%M').time(),
+        days=(0, 1, 2, 3, 4, 5, 6),  # Todos os dias da semana
+        name='today_tasks_reminder'
+    )
+    
     # Iniciar bot
     logger.info("🤖 Bot iniciado!")
     logger.info("🔔 Lembrete diário agendado para 8:30")
+    logger.info("🔔 Lembrete de tarefas do dia agendado para 9:00")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
