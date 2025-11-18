@@ -14,7 +14,7 @@ def create_task(user_id, title, description=None, priority='Média', category=No
     cursor.execute('''
         INSERT INTO tasks (user_id, title, description, priority, category, 
                           due_date, due_time, duration_minutes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     ''', (user_id, title, description, priority, category, due_date, due_time, duration_minutes))
     
     task_id = cursor.lastrowid
@@ -29,22 +29,22 @@ def get_user_tasks(user_id, status=None, category=None, due_date=None):
     conn = get_db()
     cursor = conn.cursor()
     
-    query = 'SELECT * FROM tasks WHERE user_id = ?'
+    query = 'SELECT * FROM tasks WHERE user_id = %s'
     params = [user_id]
     
     if status:
-        query += ' AND status = ?'
+        query += ' AND status = %s'
         params.append(status)
     
     if category:
-        query += ' AND category = ?'
+        query += ' AND category = %s'
         params.append(category)
     
     if due_date:
-        query += ' AND due_date = ?'
+        query += ' AND due_date = %s'
         params.append(due_date)
     
-    query += ' ORDER BY CASE WHEN category IS NULL THEN 1 ELSE 0 END, category ASC, CASE priority WHEN "Alta" THEN 1 WHEN "Média" THEN 2 ELSE 3 END, due_date ASC, created_at DESC'
+    query += ' ORDER BY CASE WHEN category IS NULL THEN 1 ELSE 0 END, category ASC, CASE priority WHEN \'Alta\' THEN 1 WHEN \'Média\' THEN 2 ELSE 3 END, due_date ASC, created_at DESC'
     
     cursor.execute(query, params)
     tasks = cursor.fetchall()
@@ -57,7 +57,7 @@ def get_task_by_id(task_id):
     """Obter tarefa por ID"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM tasks WHERE id = ?', (task_id,))
+    cursor.execute('SELECT * FROM tasks WHERE id = %s', (task_id,))
     task = cursor.fetchone()
     conn.close()
     return task
@@ -71,7 +71,7 @@ def complete_task(task_id):
     cursor.execute('''
         UPDATE tasks 
         SET status = 'Concluída', completed_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = %s
     ''', (task_id,))
     
     conn.commit()
@@ -82,7 +82,7 @@ def delete_task(task_id):
     """Apagar tarefa"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
+    cursor.execute('DELETE FROM tasks WHERE id = %s', (task_id,))
     conn.commit()
     conn.close()
 
@@ -98,14 +98,14 @@ def update_task(task_id, **kwargs):
     
     for key, value in kwargs.items():
         if value is not None:
-            fields.append(f"{key} = ?")
+            fields.append(f"{key} = %s")
             values.append(value)
     
     if not fields:
         conn.close()
         return
     
-    query = f"UPDATE tasks SET {', '.join(fields)} WHERE id = ?"
+    query = f"UPDATE tasks SET {', '.join(fields)} WHERE id = %s"
     values.append(task_id)
     
     cursor.execute(query, values)
@@ -117,7 +117,7 @@ def get_user_categories(user_id):
     """Obter categorias do utilizador"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM categories WHERE user_id = ? ORDER BY name', (user_id,))
+    cursor.execute('SELECT * FROM categories WHERE user_id = %s ORDER BY name', (user_id,))
     categories = cursor.fetchall()
     conn.close()
     return categories
@@ -131,7 +131,7 @@ def add_category(user_id, name, emoji='📁'):
     try:
         cursor.execute('''
             INSERT INTO categories (user_id, name, emoji)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         ''', (user_id, name, emoji))
         conn.commit()
         success = True
@@ -146,7 +146,7 @@ def delete_category(category_id):
     """Apagar categoria"""
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM categories WHERE id = ?', (category_id,))
+    cursor.execute('DELETE FROM categories WHERE id = %s', (category_id,))
     conn.commit()
     conn.close()
 
@@ -157,15 +157,15 @@ def get_stats(user_id):
     cursor = conn.cursor()
     
     # Total de tarefas
-    cursor.execute('SELECT COUNT(*) FROM tasks WHERE user_id = ?', (user_id,))
+    cursor.execute('SELECT COUNT(*) FROM tasks WHERE user_id = %s', (user_id,))
     total = cursor.fetchone()[0]
     
     # Tarefas concluídas
-    cursor.execute('SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status = "Concluída"', (user_id,))
+    cursor.execute('SELECT COUNT(*) FROM tasks WHERE user_id = %s AND status = "Concluída"', (user_id,))
     completed = cursor.fetchone()[0]
     
     # Tarefas pendentes
-    cursor.execute('SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status = "Pendente"', (user_id,))
+    cursor.execute('SELECT COUNT(*) FROM tasks WHERE user_id = %s AND status = "Pendente"', (user_id,))
     pending = cursor.fetchone()[0]
     
     # Taxa de conclusão
@@ -175,15 +175,15 @@ def get_stats(user_id):
     today = datetime.now().strftime('%Y-%m-%d')
     cursor.execute('''
         SELECT COUNT(*) FROM tasks 
-        WHERE user_id = ? AND status = "Concluída" 
-        AND DATE(completed_at) = ?
+        WHERE user_id = %s AND status = "Concluída" 
+        AND DATE(completed_at) = %s
     ''', (user_id, today))
     completed_today = cursor.fetchone()[0]
     
     # Tarefas concluídas esta semana
     cursor.execute('''
         SELECT COUNT(*) FROM tasks 
-        WHERE user_id = ? AND status = "Concluída" 
+        WHERE user_id = %s AND status = "Concluída" 
         AND DATE(completed_at) >= DATE('now', '-7 days')
     ''', (user_id,))
     completed_week = cursor.fetchone()[0]
