@@ -176,6 +176,7 @@ def get_stats(user_id):
     cursor.execute('''
         SELECT COUNT(*) FROM tasks 
         WHERE user_id = %s AND status = 'Concluída' 
+        AND completed_at IS NOT NULL
         AND DATE(completed_at) = %s
     ''', (user_id, today))
     completed_today = cursor.fetchone()[0]
@@ -184,6 +185,7 @@ def get_stats(user_id):
     cursor.execute('''
         SELECT COUNT(*) FROM tasks 
         WHERE user_id = %s AND status = 'Concluída' 
+        AND completed_at IS NOT NULL
         AND DATE(completed_at) >= CURRENT_DATE - INTERVAL '7 days'
     ''', (user_id,))
     completed_week = cursor.fetchone()[0]
