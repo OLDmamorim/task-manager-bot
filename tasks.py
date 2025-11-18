@@ -161,11 +161,11 @@ def get_stats(user_id):
     total = cursor.fetchone()[0]
     
     # Tarefas concluídas
-    cursor.execute('SELECT COUNT(*) FROM tasks WHERE user_id = %s AND status = "Concluída"', (user_id,))
+    cursor.execute('SELECT COUNT(*) FROM tasks WHERE user_id = %s AND status = \'Concluída\'', (user_id,))
     completed = cursor.fetchone()[0]
     
     # Tarefas pendentes
-    cursor.execute('SELECT COUNT(*) FROM tasks WHERE user_id = %s AND status = "Pendente"', (user_id,))
+    cursor.execute('SELECT COUNT(*) FROM tasks WHERE user_id = %s AND status = \'Pendente\'', (user_id,))
     pending = cursor.fetchone()[0]
     
     # Taxa de conclusão
@@ -175,7 +175,7 @@ def get_stats(user_id):
     today = datetime.now().strftime('%Y-%m-%d')
     cursor.execute('''
         SELECT COUNT(*) FROM tasks 
-        WHERE user_id = %s AND status = "Concluída" 
+        WHERE user_id = %s AND status = 'Concluída' 
         AND DATE(completed_at) = %s
     ''', (user_id, today))
     completed_today = cursor.fetchone()[0]
@@ -183,8 +183,8 @@ def get_stats(user_id):
     # Tarefas concluídas esta semana
     cursor.execute('''
         SELECT COUNT(*) FROM tasks 
-        WHERE user_id = %s AND status = "Concluída" 
-        AND DATE(completed_at) >= DATE('now', '-7 days')
+        WHERE user_id = %s AND status = 'Concluída' 
+        AND DATE(completed_at) >= CURRENT_DATE - INTERVAL '7 days'
     ''', (user_id,))
     completed_week = cursor.fetchone()[0]
     
