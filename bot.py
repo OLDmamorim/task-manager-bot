@@ -864,10 +864,15 @@ async def send_daily_tasks(context: ContextTypes.DEFAULT_TYPE):
                 # Não enviar mensagem se não houver tarefas
                 continue
             
-            # Separar tarefas atrasadas e normais
+            # Separar e ordenar tarefas
             today = datetime.now().date()
+            tomorrow = today + timedelta(days=1)
+            
             overdue_tasks = []
-            regular_tasks = []
+            today_tasks = []
+            tomorrow_tasks = []
+            future_tasks = []
+            no_date_tasks = []
             
             for task in tasks:
                 if task['due_date']:
@@ -875,12 +880,23 @@ async def send_daily_tasks(context: ContextTypes.DEFAULT_TYPE):
                         task_date = datetime.strptime(task['due_date'], '%Y-%m-%d').date()
                         if task_date < today:
                             overdue_tasks.append(task)
+                        elif task_date == today:
+                            today_tasks.append(task)
+                        elif task_date == tomorrow:
+                            tomorrow_tasks.append(task)
                         else:
-                            regular_tasks.append(task)
+                            future_tasks.append((task, task_date))
                     except:
-                        regular_tasks.append(task)
+                        no_date_tasks.append(task)
                 else:
-                    regular_tasks.append(task)
+                    no_date_tasks.append(task)
+            
+            # Ordenar tarefas futuras por data
+            future_tasks.sort(key=lambda x: x[1])
+            future_tasks = [task for task, _ in future_tasks]
+            
+            # Combinar todas as tarefas na ordem correta
+            regular_tasks = today_tasks + tomorrow_tasks + future_tasks + no_date_tasks
             
             # Criar mensagem
             text = "🌅 <b>Bom dia!</b>\n\n"
