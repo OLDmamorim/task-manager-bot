@@ -22,6 +22,7 @@ from tasks import (
     delete_task, get_stats
 )
 from calendar_utils import get_month_calendar, handle_calendar_callback
+from ai_assistant import get_ai_suggestion, format_tasks_for_ai
 
 # Configurar logging
 logging.basicConfig(
@@ -174,8 +175,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /concluir - Marcar como concluída
 /apagar_tarefa - Apagar tarefa
 
-<b>Estatísticas:</b>
+<b>Estatísticas e IA:</b>
 /stats - Ver estatísticas
+/sugestoes - 🤖 Obter sugestão do Assistente IA
 
 <b>Ajuda:</b>
 /help - Mostrar esta mensagem
@@ -393,6 +395,56 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def sugestoes_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando /sugestoes - Obter sugestão do Assistente IA"""
+    try:
+        user_id = update.effective_user.id
+        
+        # Mostrar mensagem de "a pensar"
+        thinking_msg = await update.message.reply_text(
+            "🤖 <b>Assistente IA</b>\n\n🧠 A analisar as suas tarefas...",
+            parse_mode='HTML'
+        )
+        
+        # Obter tarefas pendentes
+        tasks = get_user_tasks(user_id, status='Pendente')
+        
+        # Formatar tarefas para a IA
+        formatted_tasks = format_tasks_for_ai(tasks)
+        
+        # Obter sugestão da IA
+        suggestion = get_ai_suggestion(formatted_tasks)
+        
+        # Criar mensagem com a sugestão
+        text = f"🤖 <b>Assistente IA</b>\n\n{suggestion['sugestao']}"
+        
+        # Criar teclado com ações (se houver)
+        keyboard = []
+        if suggestion.get('acoes'):
+            for acao in suggestion['acoes']:
+                keyboard.append([InlineKeyboardButton(
+                    acao['texto'],
+                    callback_data=acao['callback']
+                )])
+        
+        # Editar mensagem com a sugestão
+        if keyboard:
+            await thinking_msg.edit_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+        else:
+            await thinking_msg.edit_text(text, parse_mode='HTML')
+        
+    except Exception as e:
+        logger.error(f"Erro no comando /sugestoes: {e}", exc_info=True)
+        await update.message.reply_text(
+            "❌ Erro ao obter sugestões. Por favor, tente novamente.",
+            parse_mode='HTML'
+        )
+
+
 # ==================== CALLBACK HANDLER ====================
 
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -406,6 +458,31 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "cancel":
         await query.edit_message_text("❌ Operação cancelada.")
         return
+    
+    # Assistente IA - Ações
+    if data.startswith("ai_"):
+        if data == "ai_ignore":
+            await query.edit_message_text(
+                "🤖 <b>Assistente IA</b>\n\n✅ Ok, sem problema! Use /sugestoes quando quiser outra sugestão.",
+                parse_mode='HTML'
+            )
+            return
+        
+        elif data == "ai_accept":
+            await query.edit_message_text(
+                "🤖 <b>Assistente IA</b>\n\n✅ Ótimo! Boa sorte com as suas tarefas!",
+                parse_mode='HTML'
+            )
+            return
+        
+        elif data.startswith("ai_split_"):
+            # Dividir tarefa em sub-tarefas
+            task_id = int(data.replace("ai_split_", ""))
+            await query.edit_message_text(
+                "🤖 <b>Assistente IA</b>\n\nℹ️ A funcionalidade de dividir tarefas estará disponível em breve!\n\nPor enquanto, pode criar as sub-tarefas manualmente com /nova_tarefa.",
+                parse_mode='HTML'
+            )
+            return
     
     # Menu inline - Atalhos rápidos
     if data.startswith("menu_"):
@@ -1085,6 +1162,7 @@ async def setup_commands(app):
         BotCommand("concluir", "Marcar como concluída"),
         BotCommand("apagar_tarefa", "Apagar tarefa"),
         BotCommand("stats", "Ver estatísticas"),
+        BotCommand("sugestoes", "🤖 Obter sugestão do Assistente IA"),
         BotCommand("categoria", "Filtrar tarefas por categoria"),
     ]
     await app.bot.set_my_commands(commands)
@@ -1108,6 +1186,7 @@ def main():
     app.add_handler(CommandHandler('concluir', concluir_command))
     app.add_handler(CommandHandler('apagar_tarefa', apagar_tarefa_command))
     app.add_handler(CommandHandler('stats', stats_command))
+    app.add_handler(CommandHandler('sugestoes', sugestoes_command))
     app.add_handler(CommandHandler('categoria', categoria_command))
     
     # Handlers
