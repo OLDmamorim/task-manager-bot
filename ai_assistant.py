@@ -6,6 +6,7 @@ import json
 import logging
 from datetime import datetime
 from openai import OpenAI
+from tts_helper import text_to_speech
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ def get_ai_suggestion(tasks):
         {
             "tipo": "divisao_tarefa" | "prioridade" | "definir_data" | "agrupamento" | "sem_sugestao",
             "sugestao": "Texto da sugestão",
+            "audio_path": "Caminho do arquivo de áudio (opcional)",
             "tarefa_id": int (opcional),
             "acoes": [
                 {"texto": "Texto do botão", "callback": "callback_data"}
@@ -117,6 +119,18 @@ Responda agora em JSON:"""
         suggestion = json.loads(suggestion_json)
         
         logger.info(f"✅ Sugestão IA obtida: {suggestion['tipo']}")
+        
+        # Gerar áudio da sugestão
+        try:
+            suggestion_text = suggestion.get('sugestao', '')
+            if suggestion_text:
+                audio_path = text_to_speech(suggestion_text)
+                if audio_path:
+                    suggestion['audio_path'] = audio_path
+                    logger.info(f"🔊 Áudio gerado para sugestão")
+        except Exception as audio_error:
+            logger.warning(f"⚠️ Erro ao gerar áudio (continuando sem áudio): {audio_error}")
+        
         return suggestion
         
     except json.JSONDecodeError as e:
