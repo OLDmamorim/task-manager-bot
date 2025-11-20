@@ -427,7 +427,7 @@ async def sugestoes_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     callback_data=acao['callback']
                 )])
         
-        # Editar mensagem com a sugestão
+        # Editar mensagem com a sugestão (texto)
         if keyboard:
             await thinking_msg.edit_text(
                 text,
@@ -436,6 +436,19 @@ async def sugestoes_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await thinking_msg.edit_text(text, parse_mode='HTML')
+        
+        # Enviar mensagem de voz (se houver áudio)
+        audio_path = suggestion.get('audio_path')
+        if audio_path:
+            try:
+                with open(audio_path, 'rb') as audio_file:
+                    await update.message.reply_voice(
+                        voice=audio_file,
+                        caption="🔊 Sugestão em áudio"
+                    )
+                logger.info("🎧 Mensagem de voz enviada")
+            except Exception as audio_error:
+                logger.warning(f"⚠️ Erro ao enviar mensagem de voz: {audio_error}")
         
     except Exception as e:
         logger.error(f"Erro no comando /sugestoes: {e}", exc_info=True)
