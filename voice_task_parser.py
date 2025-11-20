@@ -153,13 +153,5 @@ def should_ask_for_details(parsed_task: dict) -> bool:
     Returns:
         bool: True se deve perguntar, False se pode criar diretamente
     """
-    # Se confiança é alta (>0.7) e tem pelo menos título + data ou prioridade, criar diretamente
-    confidence = parsed_task.get('confidence', 0)
-    has_date = parsed_task.get('due_date') is not None
-    has_priority = parsed_task.get('priority') is not None
-    
-    if confidence > 0.7 and (has_date or has_priority):
-        return False  # Criar diretamente
-    
-    # Caso contrário, perguntar detalhes
+    # SEMPRE perguntar detalhes para permitir escolha de hora e Google Calendar
     return True
