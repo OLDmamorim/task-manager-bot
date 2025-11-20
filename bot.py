@@ -25,6 +25,7 @@ from calendar_utils import get_month_calendar, handle_calendar_callback
 from ai_assistant import get_ai_suggestion, format_tasks_for_ai
 from stt_helper import transcribe_audio
 from voice_task_parser import parse_voice_task, should_ask_for_details
+from voice_task_helpers import ask_category_for_voice_task, create_voice_task_final
 
 # Configurar logging
 logging.basicConfig(
@@ -472,6 +473,138 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Cancelar
     if data == "cancel":
         await query.edit_message_text("❌ Operação cancelada.")
+        context.user_data.pop('creating_task', None)
+        context.user_data.pop('task_data', None)
+        return
+    
+    # Criação de tarefa por voz - Prioridade
+    if data.startswith("priority_") and context.user_data.get('creating_task'):
+        priority = data.replace("priority_", "")
+        context.user_data['task_data']['priority'] = priority
+        
+        await query.edit_message_text(
+            f"✅ <b>Prioridade definida:</b> {priority}\n\n📅 Quando queres fazer isto?",
+            parse_mode='HTML'
+        )
+        
+        # Perguntar data
+        keyboard = [
+            [InlineKeyboardButton("📅 Hoje", callback_data="date_today")],
+            [InlineKeyboardButton("📅 Amanhã", callback_data="date_tomorrow")],
+            [InlineKeyboardButton("📅 Escolher data", callback_data="date_calendar")],
+            [InlineKeyboardButton("📭 Sem data", callback_data="date_nodate")],
+        ]
+        
+        await query.message.reply_text(
+            "📅 <b>Escolha a data:</b>",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='HTML'
+        )
+        return
+    
+    # Criação de tarefa por voz - Data
+    if data.startswith("date_") and context.user_data.get('creating_task'):
+        from datetime import date, timedelta
+        
+        if data == "date_today":
+            due_date = date.today().strftime('%Y-%m-%d')
+            date_text = "Hoje"
+        elif data == "date_tomorrow":
+            due_date = (date.today() + timedelta(days=1)).strftime('%Y-%m-%d')
+            date_text = "Amanhã"
+        elif data == "date_nodate":
+            due_date = None
+            date_text = "Sem data"
+        else:
+            # date_calendar - implementar depois
+            await query.edit_message_text(
+                "ℹ️ Escolha de data personalizada estará disponível em breve!\n\nPor favor, escolha Hoje, Amanhã ou Sem data.",
+                parse_mode='HTML'
+            )
+            return
+        
+        context.user_data['task_data']['due_date'] = due_date
+        
+        await query.edit_message_text(
+            f"✅ <b>Data definida:</b> {date_text}",
+            parse_mode='HTML'
+        )
+        
+        # Se tem data, perguntar hora
+        if due_date:
+            keyboard = [
+                [InlineKeyboardButton("⏰ 09:00", callback_data="time_09:00")],
+                [InlineKeyboardButton("⏰ 12:00", callback_data="time_12:00")],
+                [InlineKeyboardButton("⏰ 15:00", callback_data="time_15:00")],
+                [InlineKeyboardButton("⏰ 18:00", callback_data="time_18:00")],
+                [InlineKeyboardButton("🚫 Sem hora", callback_data="time_notime")],
+            ]
+            
+            await query.message.reply_text(
+                "⏰ <b>A que horas?</b>",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode='HTML'
+            )
+        else:
+            # Sem data, perguntar categoria
+            await ask_category_for_voice_task(query, context)
+        return
+    
+    # Criação de tarefa por voz - Hora
+    if data.startswith("time_") and context.user_data.get('creating_task'):
+        if data == "time_notime":
+            due_time = None
+            time_text = "Sem hora"
+        else:
+            due_time = data.replace("time_", "")
+            time_text = due_time
+        
+        context.user_data['task_data']['due_time'] = due_time
+        
+        await query.edit_message_text(
+            f"✅ <b>Hora definida:</b> {time_text}",
+            parse_mode='HTML'
+        )
+        
+        # Perguntar categoria
+        await ask_category_for_voice_task(query, context)
+        return
+    
+    # Criação de tarefa por voz - Categoria
+    if data.startswith("category_") and context.user_data.get('creating_task'):
+        if data == "category_none":
+            category = None
+            category_text = "Sem categoria"
+        else:
+            category = data.replace("category_", "")
+            category_text = category
+        
+        context.user_data['task_data']['category'] = category
+        
+        await query.edit_message_text(
+            f"✅ <b>Categoria definida:</b> {category_text}",
+            parse_mode='HTML'
+        )
+        
+        # Perguntar Google Calendar
+        keyboard = [
+            [InlineKeyboardButton("✅ Sim, adicionar ao Google Calendar", callback_data="gcal_yes")],
+            [InlineKeyboardButton("❌ Não, apenas no bot", callback_data="gcal_no")],
+        ]
+        
+        await query.message.reply_text(
+            "📆 <b>Adicionar ao Google Calendar?</b>",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='HTML'
+        )
+        return
+    
+    # Criação de tarefa por voz - Google Calendar
+    if data.startswith("gcal_") and context.user_data.get('creating_task'):
+        add_to_gcal = (data == "gcal_yes")
+        
+        # Criar tarefa
+        await create_voice_task_final(query, context, add_to_gcal)
         return
     
     # Assistente IA - Ações
