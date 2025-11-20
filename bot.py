@@ -23,6 +23,8 @@ from tasks import (
 )
 from calendar_utils import get_month_calendar, handle_calendar_callback
 from ai_assistant import get_ai_suggestion, format_tasks_for_ai
+from stt_helper import transcribe_audio
+from voice_task_parser import parse_voice_task, should_ask_for_details
 
 # Configurar logging
 logging.basicConfig(
@@ -1139,6 +1141,180 @@ async def send_today_tasks(context: ContextTypes.DEFAULT_TYPE):
             continue
 
 
+# ==================== VOICE MESSAGE HANDLER ====================
+
+async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler para mensagens de voz - Criar tarefas por voz"""
+    try:
+        user_id = update.effective_user.id
+        
+        # Mostrar mensagem de processamento
+        processing_msg = await update.message.reply_text(
+            "🎤 <b>A processar mensagem de voz...</b>\n\n⏳ A transcrever áudio...",
+            parse_mode='HTML'
+        )
+        
+        # Baixar arquivo de voz do Telegram
+        voice_file = await update.message.voice.get_file()
+        voice_path = await voice_file.download_to_drive()
+        
+        logger.info(f"📥 Arquivo de voz baixado: {voice_path}")
+        
+        # Transcrever áudio
+        transcribed_text = transcribe_audio(str(voice_path))
+        
+        if not transcribed_text:
+            await processing_msg.edit_text(
+                "❌ Desculpe, não consegui entender o áudio. Por favor, tente novamente.",
+                parse_mode='HTML'
+            )
+            return
+        
+        logger.info(f"📝 Texto transcrito: {transcribed_text}")
+        
+        # Atualizar mensagem
+        await processing_msg.edit_text(
+            f"🎤 <b>Mensagem de voz processada</b>\n\n"
+            f"📝 Você disse: <i>\"{transcribed_text}\"</i>\n\n"
+            f"🧠 A analisar...",
+            parse_mode='HTML'
+        )
+        
+        # Analisar comando com IA
+        parsed_task = parse_voice_task(transcribed_text)
+        
+        logger.info(f"🧠 Tarefa analisada: {parsed_task}")
+        
+        # Verificar se deve criar automaticamente ou perguntar detalhes
+        if should_ask_for_details(parsed_task):
+            # Modo interativo - perguntar detalhes
+            await processing_msg.edit_text(
+                f"✅ <b>Entendi!</b>\n\n"
+                f"📋 Tarefa: <b>{parsed_task['title']}</b>\n\n"
+                f"Vou ajudá-lo a criar esta tarefa. Primeiro, escolha a prioridade:",
+                parse_mode='HTML'
+            )
+            
+            # Guardar dados da tarefa em user_data
+            context.user_data['creating_task'] = True
+            context.user_data['user_id'] = user_id
+            context.user_data['task_data'] = {
+                'title': parsed_task['title'],
+                'due_date': parsed_task.get('due_date'),
+                'due_time': parsed_task.get('due_time'),
+                'priority': parsed_task.get('priority'),
+                'category': parsed_task.get('category')
+            }
+            
+            # Perguntar prioridade (se não tiver)
+            if not parsed_task.get('priority'):
+                keyboard = [
+                    [InlineKeyboardButton("🔴 Alta", callback_data="priority_Alta")],
+                    [InlineKeyboardButton("🟡 Média", callback_data="priority_Média")],
+                    [InlineKeyboardButton("🟢 Baixa", callback_data="priority_Baixa")],
+                ]
+                
+                await update.message.reply_text(
+                    "⚡ <b>Escolha a prioridade:</b>",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode='HTML'
+                )
+            else:
+                # Já tem prioridade, ir para data
+                context.user_data['task_data']['priority'] = parsed_task['priority']
+                
+                if not parsed_task.get('due_date'):
+                    # Perguntar data
+                    keyboard = [
+                        [InlineKeyboardButton("📅 Hoje", callback_data="date_today")],
+                        [InlineKeyboardButton("📅 Amanhã", callback_data="date_tomorrow")],
+                        [InlineKeyboardButton("📅 Escolher data", callback_data="date_calendar")],
+                        [InlineKeyboardButton("📭 Sem data", callback_data="date_nodate")],
+                    ]
+                    
+                    await update.message.reply_text(
+                        "📅 <b>Quando queres fazer isto?</b>",
+                        reply_markup=InlineKeyboardMarkup(keyboard),
+                        parse_mode='HTML'
+                    )
+                else:
+                    # Já tem data, criar tarefa
+                    await create_task_from_voice(update, context, parsed_task, processing_msg)
+        
+        else:
+            # Modo automático - criar tarefa diretamente
+            await create_task_from_voice(update, context, parsed_task, processing_msg)
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao processar mensagem de voz: {e}", exc_info=True)
+        await update.message.reply_text(
+            "❌ Desculpe, ocorreu um erro ao processar a mensagem de voz. Por favor, tente novamente.",
+            parse_mode='HTML'
+        )
+
+
+async def create_task_from_voice(update: Update, context: ContextTypes.DEFAULT_TYPE, parsed_task: dict, processing_msg):
+    """Criar tarefa a partir de dados parseados da voz"""
+    try:
+        user_id = update.effective_user.id
+        
+        # Preparar dados da tarefa
+        title = parsed_task['title']
+        due_date = parsed_task.get('due_date')
+        due_time = parsed_task.get('due_time')
+        priority = parsed_task.get('priority', 'Média')
+        category = parsed_task.get('category')
+        
+        # Combinar data e hora se ambos existirem
+        if due_date and due_time:
+            due_date = f"{due_date} {due_time}"
+        
+        # Criar tarefa
+        task_id = create_task(
+            user_id=user_id,
+            title=title,
+            due_date=due_date,
+            priority=priority,
+            category=category
+        )
+        
+        # Formatar mensagem de confirmação
+        confirmation_text = f"✅ <b>Tarefa criada com sucesso!</b>\n\n"
+        confirmation_text += f"📋 <b>Título:</b> {title}\n"
+        
+        if due_date:
+            try:
+                if ' ' in str(due_date):
+                    date_obj = datetime.strptime(str(due_date), '%Y-%m-%d %H:%M')
+                    confirmation_text += f"📅 <b>Data:</b> {date_obj.strftime('%d/%m/%Y às %H:%M')}\n"
+                else:
+                    date_obj = datetime.strptime(str(due_date), '%Y-%m-%d')
+                    confirmation_text += f"📅 <b>Data:</b> {date_obj.strftime('%d/%m/%Y')}\n"
+            except:
+                confirmation_text += f"📅 <b>Data:</b> {due_date}\n"
+        
+        priority_emoji = {"Alta": "🔴", "Média": "🟡", "Baixa": "🟢"}.get(priority, "🟡")
+        confirmation_text += f"⚡ <b>Prioridade:</b> {priority_emoji} {priority}\n"
+        
+        if category:
+            confirmation_text += f"🏷️ <b>Categoria:</b> {category}\n"
+        
+        await processing_msg.edit_text(confirmation_text, parse_mode='HTML')
+        
+        # Limpar dados temporários
+        context.user_data.pop('creating_task', None)
+        context.user_data.pop('task_data', None)
+        
+        logger.info(f"✅ Tarefa criada por voz: ID {task_id}")
+        
+    except Exception as e:
+        logger.error(f"❌ Erro ao criar tarefa por voz: {e}", exc_info=True)
+        await processing_msg.edit_text(
+            "❌ Desculpe, ocorreu um erro ao criar a tarefa. Por favor, tente novamente.",
+            parse_mode='HTML'
+        )
+
+
 # ==================== ERROR HANDLER ====================
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1204,6 +1380,7 @@ def main():
     
     # Handlers
     app.add_handler(CallbackQueryHandler(callback_handler))
+    app.add_handler(MessageHandler(filters.VOICE, voice_message_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     
     # Error handler
